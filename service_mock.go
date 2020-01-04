@@ -2,8 +2,8 @@ package gousuredis
 
 import "github.com/indece-official/go-gousu"
 
-// MockRedisService for simply mocking IRedisService
-type MockRedisService struct {
+// MockService for simply mocking IService
+type MockService struct {
 	gousu.MockService
 
 	GetFunc           func(key string) ([]byte, error)
@@ -30,90 +30,94 @@ type MockRedisService struct {
 	LLenFuncCalled    int
 }
 
-// MockRedisService implements IRedisService
-var _ (IRedisService) = (*MockRedisService)(nil)
+// MockService implements IService
+var _ (IService) = (*MockService)(nil)
 
 // Get calls GetFunc and increases GetFuncCalled
-func (s *MockRedisService) Get(key string) ([]byte, error) {
+func (s *MockService) Get(key string) ([]byte, error) {
 	s.GetFuncCalled++
 
 	return s.GetFunc(key)
 }
 
 // Set calls SetFunc and increases SetFuncCalled
-func (s *MockRedisService) Set(key string, data []byte) error {
+func (s *MockService) Set(key string, data []byte) error {
 	s.SetFuncCalled++
 
 	return s.SetFunc(key, data)
 }
 
 // SetNXPX calls SetNXPXFunc and increases SetNXPXFuncCalled
-func (s *MockRedisService) SetNXPX(key string, data []byte, timeoutMS int) error {
+func (s *MockService) SetNXPX(key string, data []byte, timeoutMS int) error {
 	s.SetNXPXFuncCalled++
 
 	return s.SetNXPXFunc(key, data, timeoutMS)
 }
 
 // Del calls DelFunc and increases DelFuncCalled
-func (s *MockRedisService) Del(key string) error {
+func (s *MockService) Del(key string) error {
 	s.DelFuncCalled++
 
 	return s.DelFunc(key)
 }
 
 // RPush calls RPushFunc and increases RPushFuncCalled
-func (s *MockRedisService) RPush(key string, data []byte) error {
+func (s *MockService) RPush(key string, data []byte) error {
 	s.RPushFuncCalled++
 
 	return s.RPushFunc(key, data)
 }
 
 // LPop calls LPopFunc and increases LPopFuncCalled
-func (s *MockRedisService) LPop(key string) ([]byte, error) {
+func (s *MockService) LPop(key string) ([]byte, error) {
 	s.LPopFuncCalled++
 
 	return s.LPopFunc(key)
 }
 
 // BLPop calls BLPopFunc and increases BLPopFuncCalled
-func (s *MockRedisService) BLPop(key string, timeout int) ([]byte, error) {
+func (s *MockService) BLPop(key string, timeout int) ([]byte, error) {
 	s.BLPopFuncCalled++
 
 	return s.BLPopFunc(key, timeout)
 }
 
 // HScan calls HScanFunc and increases HScanFuncCalled
-func (s *MockRedisService) HScan(key string, cursor int) (int, [][]byte, error) {
+func (s *MockService) HScan(key string, cursor int) (int, [][]byte, error) {
 	s.HScanFuncCalled++
 
 	return s.HScanFunc(key, cursor)
 }
 
 // HKeys calls HKeysFunc and increases HKeysFuncCalled
-func (s *MockRedisService) HKeys(key string) ([][]byte, error) {
+func (s *MockService) HKeys(key string) ([][]byte, error) {
 	s.HKeysFuncCalled++
 
 	return s.HKeysFunc(key)
 }
 
 // LIndex calls LIndexFunc and increases LIndexFuncCalled
-func (s *MockRedisService) LIndex(key string, position int) ([]byte, error) {
+func (s *MockService) LIndex(key string, position int) ([]byte, error) {
 	s.LIndexFuncCalled++
 
 	return s.LIndexFunc(key, position)
 }
 
 // LLen calls LLenFunc and increases LLenFuncCalled
-func (s *MockRedisService) LLen(key string) (int, error) {
+func (s *MockService) LLen(key string) (int, error) {
 	s.LLenFuncCalled++
 
 	return s.LLenFunc(key)
 }
 
-// NewMockRedisService creates a new initialized instance of MockRedisService
-func NewMockRedisService() *MockRedisService {
-	return &MockRedisService{
-		MockService: gousu.MockService{},
+// NewMockService creates a new initialized instance of MockService
+func NewMockService() *MockService {
+	return &MockService{
+		MockService: gousu.MockService{
+			NameFunc: func() string {
+				return ServiceName
+			},
+		},
 
 		GetFunc: func(key string) ([]byte, error) {
 			return []byte{}, nil

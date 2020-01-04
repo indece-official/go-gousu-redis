@@ -9,13 +9,16 @@ import (
 	"github.com/namsral/flag"
 )
 
+// ServiceName defines the name of redis service used for dependency injection
+const ServiceName = "redis"
+
 var (
 	redisHost = flag.String("redis_host", "127.0.0.1", "Redis host")
 	redisPort = flag.Int("redis_port", 6379, "Redis port")
 )
 
-// IRedisService defines the interface of the redis service
-type IRedisService interface {
+// IService defines the interface of the redis service
+type IService interface {
 	gousu.IService
 
 	Get(key string) ([]byte, error)
@@ -31,20 +34,25 @@ type IRedisService interface {
 	LLen(key string) (int, error)
 }
 
-// RedisService provides a service for basic redis client functionality
+// Service provides a service for basic redis client functionality
 //
 // Used flags:
 //   * redis_host Hostname of redis service
 //   * redis_port Port of redis service
-type RedisService struct {
+type Service struct {
 	log  *gousu.Log
 	pool *redis.Pool
 }
 
-var _ IRedisService = (*RedisService)(nil)
+var _ IService = (*Service)(nil)
+
+// Name returns the name of redis service from ServiceName
+func (s *Service) Name() string {
+	return ServiceName
+}
 
 // Start connects to the redis pool
-func (s *RedisService) Start() error {
+func (s *Service) Start() error {
 	s.log.Infof("Connecting to redis on %s:%d ...", *redisHost, *redisPort)
 
 	s.pool = &redis.Pool{
@@ -76,8 +84,8 @@ func (s *RedisService) Start() error {
 	return nil
 }
 
-// Health checks the health of the RedisService by pinging the redis database
-func (s *RedisService) Health() error {
+// Health checks the health of the Service by pinging the redis database
+func (s *Service) Health() error {
 	conn := s.pool.Get()
 	defer conn.Close()
 
@@ -91,12 +99,12 @@ func (s *RedisService) Health() error {
 }
 
 // Stop closes all redis pool connections
-func (s *RedisService) Stop() error {
+func (s *Service) Stop() error {
 	return s.pool.Close()
 }
 
 // Get retrieves a key's value from redis
-func (s *RedisService) Get(key string) ([]byte, error) {
+func (s *Service) Get(key string) ([]byte, error) {
 	conn := s.pool.Get()
 	defer conn.Close()
 
@@ -104,7 +112,7 @@ func (s *RedisService) Get(key string) ([]byte, error) {
 }
 
 // Set stores a key and its value in redis
-func (s *RedisService) Set(key string, data []byte) error {
+func (s *Service) Set(key string, data []byte) error {
 	conn := s.pool.Get()
 	defer conn.Close()
 
@@ -114,7 +122,7 @@ func (s *RedisService) Set(key string, data []byte) error {
 }
 
 // SetNXPX stores a key and its value with expiration time in redis
-func (s *RedisService) SetNXPX(key string, data []byte, timeoutMS int) error {
+func (s *Service) SetNXPX(key string, data []byte, timeoutMS int) error {
 	conn := s.pool.Get()
 	defer conn.Close()
 
@@ -124,7 +132,7 @@ func (s *RedisService) SetNXPX(key string, data []byte, timeoutMS int) error {
 }
 
 // Del deletes a key from redis
-func (s *RedisService) Del(key string) error {
+func (s *Service) Del(key string) error {
 	conn := s.pool.Get()
 	defer conn.Close()
 
@@ -134,7 +142,7 @@ func (s *RedisService) Del(key string) error {
 }
 
 // RPush appends an item to a list
-func (s *RedisService) RPush(key string, data []byte) error {
+func (s *Service) RPush(key string, data []byte) error {
 	conn := s.pool.Get()
 	defer conn.Close()
 
@@ -144,7 +152,7 @@ func (s *RedisService) RPush(key string, data []byte) error {
 }
 
 // LPop returns the newest item from a list (non-blocking)
-func (s *RedisService) LPop(key string) ([]byte, error) {
+func (s *Service) LPop(key string) ([]byte, error) {
 	conn := s.pool.Get()
 	defer conn.Close()
 
@@ -152,7 +160,7 @@ func (s *RedisService) LPop(key string) ([]byte, error) {
 }
 
 // BLPop waits for a new item in a list (blocking with timeout)
-func (s *RedisService) BLPop(key string, timeout int) ([]byte, error) {
+func (s *Service) BLPop(key string, timeout int) ([]byte, error) {
 	conn := s.pool.Get()
 	defer conn.Close()
 
@@ -160,7 +168,7 @@ func (s *RedisService) BLPop(key string, timeout int) ([]byte, error) {
 }
 
 // HScan scans a hash map and returns a list of field-value-tupples
-func (s *RedisService) HScan(key string, cursor int) (int, [][]byte, error) {
+func (s *Service) HScan(key string, cursor int) (int, [][]byte, error) {
 	arr := make([][]byte, 0)
 
 	conn := s.pool.Get()
@@ -180,7 +188,7 @@ func (s *RedisService) HScan(key string, cursor int) (int, [][]byte, error) {
 }
 
 // HKeys gets all field names in the hash stored at key
-func (s *RedisService) HKeys(key string) ([][]byte, error) {
+func (s *Service) HKeys(key string) ([][]byte, error) {
 	conn := s.pool.Get()
 	defer conn.Close()
 
@@ -188,7 +196,7 @@ func (s *RedisService) HKeys(key string) ([][]byte, error) {
 }
 
 // LIndex gets the element at index in the list stored at key
-func (s *RedisService) LIndex(key string, position int) ([]byte, error) {
+func (s *Service) LIndex(key string, position int) ([]byte, error) {
 	conn := s.pool.Get()
 	defer conn.Close()
 
@@ -196,16 +204,19 @@ func (s *RedisService) LIndex(key string, position int) ([]byte, error) {
 }
 
 // LLen gets the length of the list stored at key
-func (s *RedisService) LLen(key string) (int, error) {
+func (s *Service) LLen(key string) (int, error) {
 	conn := s.pool.Get()
 	defer conn.Close()
 
 	return redis.Int(conn.Do("LLEN", key))
 }
 
-// NewRedisService creates a new initialized instance of RedisService
-func NewRedisService() *RedisService {
-	return &RedisService{
+// NewService is the ServiceFactory for redis service
+func NewService(ctx gousu.IContext) gousu.IService {
+	return &Service{
 		log: gousu.GetLogger("service.redis"),
 	}
 }
+
+// Assert NewService fullfills gousu.ServiceFactory
+var _ (gousu.ServiceFactory) = NewService
