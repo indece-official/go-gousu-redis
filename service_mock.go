@@ -13,6 +13,8 @@ type MockService struct {
 	RPushFunc         func(key string, data []byte) error
 	LPopFunc          func(key string) ([]byte, error)
 	BLPopFunc         func(key string, timeout int) ([]byte, error)
+	HGetFunc          func(key string, field string) ([]byte, error)
+	HSetFunc          func(key string, field string, data []byte) error
 	HScanFunc         func(key string, cursor int) (int, [][]byte, error)
 	HKeysFunc         func(key string) ([][]byte, error)
 	LIndexFunc        func(key string, position int) ([]byte, error)
@@ -24,6 +26,8 @@ type MockService struct {
 	RPushFuncCalled   int
 	LPopFuncCalled    int
 	BLPopFuncCalled   int
+	HGetFuncCalled    int
+	HSetFuncCalled    int
 	HScanFuncCalled   int
 	HKeysFuncCalled   int
 	LIndexFuncCalled  int
@@ -80,6 +84,20 @@ func (s *MockService) BLPop(key string, timeout int) ([]byte, error) {
 	s.BLPopFuncCalled++
 
 	return s.BLPopFunc(key, timeout)
+}
+
+// HGet calls GetFunc and increases GetFuncCalled
+func (s *MockService) HGet(key string, field string) ([]byte, error) {
+	s.HGetFuncCalled++
+
+	return s.HGetFunc(key, field)
+}
+
+// HSet calls SetFunc and increases SetFuncCalled
+func (s *MockService) HSet(key string, field string, data []byte) error {
+	s.HSetFuncCalled++
+
+	return s.HSetFunc(key, field, data)
 }
 
 // HScan calls HScanFunc and increases HScanFuncCalled
@@ -139,6 +157,12 @@ func NewMockService() *MockService {
 		},
 		BLPopFunc: func(key string, timeout int) ([]byte, error) {
 			return []byte{}, nil
+		},
+		HGetFunc: func(key string, field string) ([]byte, error) {
+			return []byte{}, nil
+		},
+		HSetFunc: func(key string, field string, data []byte) error {
+			return nil
 		},
 		HScanFunc: func(key string, cursor int) (int, [][]byte, error) {
 			return 0, [][]byte{}, nil

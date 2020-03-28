@@ -28,6 +28,8 @@ type IService interface {
 	RPush(key string, data []byte) error
 	LPop(key string) ([]byte, error)
 	BLPop(key string, timeout int) ([]byte, error)
+	HGet(key string, field string) ([]byte, error)
+	HSet(key string, field string, data []byte) error
 	HScan(key string, cursor int) (int, [][]byte, error)
 	HKeys(key string) ([][]byte, error)
 	LIndex(key string, position int) ([]byte, error)
@@ -165,6 +167,24 @@ func (s *Service) BLPop(key string, timeout int) ([]byte, error) {
 	defer conn.Close()
 
 	return redis.Bytes(conn.Do("BLPOP", key, timeout))
+}
+
+// HGet retrieves a hash value from redis
+func (s *Service) HGet(key string, field string) ([]byte, error) {
+	conn := s.pool.Get()
+	defer conn.Close()
+
+	return redis.Bytes(conn.Do("HGET", key, field))
+}
+
+// HSet stores a key and its value in a hash in redis
+func (s *Service) HSet(key string, field string, data []byte) error {
+	conn := s.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("HSET", key, field, data)
+
+	return err
 }
 
 // HScan scans a hash map and returns a list of field-value-tupples
