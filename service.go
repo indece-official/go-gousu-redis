@@ -174,11 +174,11 @@ func (s *Service) BLPop(key string, timeout int) ([]byte, error) {
 		return nil, err
 	}
 
-	if len(result) == 0 || result[0] == nil {
+	if len(result) < 2 || result[0] == nil || result[1] == nil {
 		return nil, redis.ErrNil
 	}
 
-	return result[0], err
+	return result[1], err
 }
 
 // HGet retrieves a hash value from redis
