@@ -17,6 +17,9 @@ var (
 	redisPort = flag.Int("redis_port", 6379, "Redis port")
 )
 
+// ErrNil is the error returned if no matching data was found
+var ErrNil = redis.ErrNil
+
 // IService defines the interface of the redis service
 type IService interface {
 	gousu.IService
@@ -166,7 +169,16 @@ func (s *Service) BLPop(key string, timeout int) ([]byte, error) {
 	conn := s.pool.Get()
 	defer conn.Close()
 
-	return redis.Bytes(conn.Do("BLPOP", key, timeout))
+	result, err := redis.ByteSlices(conn.Do("BLPOP", key, timeout))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(result) == 0 || result[0] == nil {
+		return nil, redis.ErrNil
+	}
+
+	return result[0], err
 }
 
 // HGet retrieves a hash value from redis
