@@ -33,7 +33,7 @@ type IService interface {
 	BLPop(key string, timeout int) ([]byte, error)
 	HGet(key string, field string) ([]byte, error)
 	HSet(key string, field string, data []byte) error
-	HScan(key string, cursor int) (int, [][]byte, error)
+	HScan(key string, cursor int) (int, [][][]byte, error)
 	HKeys(key string) ([][]byte, error)
 	LIndex(key string, position int) ([]byte, error)
 	LLen(key string) (int, error)
@@ -200,8 +200,8 @@ func (s *Service) HSet(key string, field string, data []byte) error {
 }
 
 // HScan scans a hash map and returns a list of field-value-tupples
-func (s *Service) HScan(key string, cursor int) (int, [][]byte, error) {
-	arr := make([][]byte, 0)
+func (s *Service) HScan(key string, cursor int) (int, [][][]byte, error) {
+	arr := make([][][]byte, 0)
 
 	conn := s.pool.Get()
 	defer conn.Close()
