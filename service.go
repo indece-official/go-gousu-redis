@@ -201,7 +201,7 @@ func (s *Service) HSet(key string, field string, data []byte) error {
 
 // HScan scans a hash map and returns a list of field-value-tupples
 func (s *Service) HScan(key string, cursor int) (int, map[string][]byte, error) {
-	arr := make([][][]byte, 0)
+	arr := make([][]byte, 0)
 
 	conn := s.pool.Get()
 	defer conn.Close()
@@ -217,8 +217,10 @@ func (s *Service) HScan(key string, cursor int) (int, map[string][]byte, error) 
 	}
 
 	keyValues := map[string][]byte{}
-	for _, row := range arr {
-		keyValues[string(row[0])] = row[1]
+	for i := range arr {
+		if i > 0 && i%2 == 0 {
+			keyValues[string(arr[i])] = arr[i-1]
+		}
 	}
 
 	return cursor, keyValues, nil
