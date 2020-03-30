@@ -33,7 +33,7 @@ type IService interface {
 	BLPop(key string, timeout int) ([]byte, error)
 	HGet(key string, field string) ([]byte, error)
 	HSet(key string, field string, data []byte) error
-	HScan(key string, cursor int) (int, [][][]byte, error)
+	HScan(key string, cursor int) (int, map[string][]byte, error)
 	HKeys(key string) ([][]byte, error)
 	LIndex(key string, position int) ([]byte, error)
 	LLen(key string) (int, error)
@@ -200,23 +200,36 @@ func (s *Service) HSet(key string, field string, data []byte) error {
 }
 
 // HScan scans a hash map and returns a list of field-value-tupples
-func (s *Service) HScan(key string, cursor int) (int, [][][]byte, error) {
-	arr := make([][][]byte, 0)
+func (s *Service) HScan(key string, cursor int) (int, map[string][]byte, error) {
+	arr := make([]interface{}, 0)
+	keys := make([][]byte, 0)
+	values := make([][]byte, 0)
 
 	conn := s.pool.Get()
 	defer conn.Close()
 
-	values, err := redis.Values(conn.Do("HSCAN", key, cursor))
+	resp, err := redis.Values(conn.Do("HSCAN", key, cursor))
 	if err != nil {
 		return 0, nil, err
 	}
 
-	values, err = redis.Scan(values, &cursor, &arr)
+	_, err = redis.Scan(resp, &cursor, &arr)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	return cursor, arr, nil
+	_, err = redis.Scan(arr, &keys, &values)
+
+	if len(keys) != len(values) {
+		return 0, nil, fmt.Errorf("Invalid response from redis: number of keys and values doesn't match")
+	}
+
+	keyValues := map[string][]byte{}
+	for i, key := range keys {
+		keyValues[string(key)] = values[i]
+	}
+
+	return cursor, keyValues, nil
 }
 
 // HKeys gets all field names in the hash stored at key
