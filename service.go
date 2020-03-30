@@ -201,9 +201,7 @@ func (s *Service) HSet(key string, field string, data []byte) error {
 
 // HScan scans a hash map and returns a list of field-value-tupples
 func (s *Service) HScan(key string, cursor int) (int, map[string][]byte, error) {
-	arr := make([]interface{}, 0)
-	keys := make([][]byte, 0)
-	values := make([][]byte, 0)
+	arr := make([][][]byte, 0)
 
 	conn := s.pool.Get()
 	defer conn.Close()
@@ -218,15 +216,9 @@ func (s *Service) HScan(key string, cursor int) (int, map[string][]byte, error) 
 		return 0, nil, err
 	}
 
-	_, err = redis.Scan(arr, &keys, &values)
-
-	if len(keys) != len(values) {
-		return 0, nil, fmt.Errorf("Invalid response from redis: number of keys and values doesn't match")
-	}
-
 	keyValues := map[string][]byte{}
-	for i, key := range keys {
-		keyValues[string(key)] = values[i]
+	for _, row := range arr {
+		keyValues[string(row[0])] = row[1]
 	}
 
 	return cursor, keyValues, nil
