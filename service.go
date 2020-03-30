@@ -218,8 +218,8 @@ func (s *Service) HScan(key string, cursor int) (int, map[string][]byte, error) 
 
 	keyValues := map[string][]byte{}
 	for i := range arr {
-		if i > 0 && i%2 == 0 {
-			keyValues[string(arr[i])] = arr[i-1]
+		if i > 0 && i%2 == 1 {
+			keyValues[string(arr[i-1])] = arr[i]
 		}
 	}
 
