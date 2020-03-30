@@ -35,6 +35,7 @@ type IService interface {
 	HSet(key string, field string, data []byte) error
 	HScan(key string, cursor int) (int, map[string][]byte, error)
 	HKeys(key string) ([][]byte, error)
+	HDel(key string, field string) error
 	LIndex(key string, position int) ([]byte, error)
 	LLen(key string) (int, error)
 }
@@ -232,6 +233,16 @@ func (s *Service) HKeys(key string) ([][]byte, error) {
 	defer conn.Close()
 
 	return redis.ByteSlices(conn.Do("HKEYS", key))
+}
+
+// HDel deletes a field from a hash
+func (s *Service) HDel(key string, field string) error {
+	conn := s.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("HDEL", key, field)
+
+	return err
 }
 
 // LIndex gets the element at index in the list stored at key

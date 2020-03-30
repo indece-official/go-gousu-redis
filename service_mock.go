@@ -17,6 +17,7 @@ type MockService struct {
 	HSetFunc          func(key string, field string, data []byte) error
 	HScanFunc         func(key string, cursor int) (int, map[string][]byte, error)
 	HKeysFunc         func(key string) ([][]byte, error)
+	HDelFunc          func(key string, field string) error
 	LIndexFunc        func(key string, position int) ([]byte, error)
 	LLenFunc          func(key string) (int, error)
 	GetFuncCalled     int
@@ -30,6 +31,7 @@ type MockService struct {
 	HSetFuncCalled    int
 	HScanFuncCalled   int
 	HKeysFuncCalled   int
+	HDelFuncCalled    int
 	LIndexFuncCalled  int
 	LLenFuncCalled    int
 }
@@ -114,6 +116,13 @@ func (s *MockService) HKeys(key string) ([][]byte, error) {
 	return s.HKeysFunc(key)
 }
 
+// HDel calls HDelFunc and increases HDelFuncCalled
+func (s *MockService) HDel(key string, field string) error {
+	s.HDelFuncCalled++
+
+	return s.HDelFunc(key, field)
+}
+
 // LIndex calls LIndexFunc and increases LIndexFuncCalled
 func (s *MockService) LIndex(key string, position int) ([]byte, error) {
 	s.LIndexFuncCalled++
@@ -169,6 +178,9 @@ func NewMockService() *MockService {
 		},
 		HKeysFunc: func(key string) ([][]byte, error) {
 			return [][]byte{}, nil
+		},
+		HDelFunc: func(key string, field string) error {
+			return nil
 		},
 		LIndexFunc: func(key string, position int) ([]byte, error) {
 			return []byte{}, nil
