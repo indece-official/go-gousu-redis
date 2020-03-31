@@ -6,34 +6,38 @@ import "github.com/indece-official/go-gousu"
 type MockService struct {
 	gousu.MockService
 
-	GetFunc           func(key string) ([]byte, error)
-	SetFunc           func(key string, data []byte) error
-	SetNXPXFunc       func(key string, data []byte, timeoutMS int) error
-	DelFunc           func(key string) error
-	RPushFunc         func(key string, data []byte) error
-	LPopFunc          func(key string) ([]byte, error)
-	BLPopFunc         func(key string, timeout int) ([]byte, error)
-	HGetFunc          func(key string, field string) ([]byte, error)
-	HSetFunc          func(key string, field string, data []byte) error
-	HScanFunc         func(key string, cursor int) (int, map[string][]byte, error)
-	HKeysFunc         func(key string) ([][]byte, error)
-	HDelFunc          func(key string, field string) error
-	LIndexFunc        func(key string, position int) ([]byte, error)
-	LLenFunc          func(key string) (int, error)
-	GetFuncCalled     int
-	SetFuncCalled     int
-	SetNXPXFuncCalled int
-	DelFuncCalled     int
-	RPushFuncCalled   int
-	LPopFuncCalled    int
-	BLPopFuncCalled   int
-	HGetFuncCalled    int
-	HSetFuncCalled    int
-	HScanFuncCalled   int
-	HKeysFuncCalled   int
-	HDelFuncCalled    int
-	LIndexFuncCalled  int
-	LLenFuncCalled    int
+	GetFunc             func(key string) ([]byte, error)
+	SetFunc             func(key string, data []byte) error
+	SetNXPXFunc         func(key string, data []byte, timeoutMS int) error
+	DelFunc             func(key string) error
+	RPushFunc           func(key string, data []byte) error
+	LPopFunc            func(key string) ([]byte, error)
+	BLPopFunc           func(key string, timeout int) ([]byte, error)
+	HGetFunc            func(key string, field string) ([]byte, error)
+	HSetFunc            func(key string, field string, data []byte) error
+	HScanFunc           func(key string, cursor int) (int, map[string][]byte, error)
+	HKeysFunc           func(key string) ([][]byte, error)
+	HDelFunc            func(key string, field string) error
+	LIndexFunc          func(key string, position int) ([]byte, error)
+	LLenFunc            func(key string) (int, error)
+	SubscribeFunc       func(channels string) (chan Message, ISubscription, error)
+	PublishFunc         func(channel string, data []byte) error
+	GetFuncCalled       int
+	SetFuncCalled       int
+	SetNXPXFuncCalled   int
+	DelFuncCalled       int
+	RPushFuncCalled     int
+	LPopFuncCalled      int
+	BLPopFuncCalled     int
+	HGetFuncCalled      int
+	HSetFuncCalled      int
+	HScanFuncCalled     int
+	HKeysFuncCalled     int
+	HDelFuncCalled      int
+	LIndexFuncCalled    int
+	LLenFuncCalled      int
+	SubscribeFuncCalled int
+	PublishFuncCalled   int
 }
 
 // MockService implements IService
@@ -137,6 +141,20 @@ func (s *MockService) LLen(key string) (int, error) {
 	return s.LLenFunc(key)
 }
 
+// Subscribe calls SubscribeFunc and increases SubscribeFunc
+func (s *MockService) Subscribe(channels string) (chan Message, ISubscription, error) {
+	s.SubscribeFuncCalled++
+
+	return s.SubscribeFunc(channels)
+}
+
+// Publish calls PublishFunc and increases PublishFuncCalled
+func (s *MockService) Publish(channel string, data []byte) error {
+	s.PublishFuncCalled++
+
+	return s.PublishFunc(channel, data)
+}
+
 // NewMockService creates a new initialized instance of MockService
 func NewMockService() *MockService {
 	return &MockService{
@@ -188,16 +206,24 @@ func NewMockService() *MockService {
 		LLenFunc: func(key string) (int, error) {
 			return 0, nil
 		},
-		GetFuncCalled:     0,
-		SetFuncCalled:     0,
-		SetNXPXFuncCalled: 0,
-		DelFuncCalled:     0,
-		RPushFuncCalled:   0,
-		LPopFuncCalled:    0,
-		BLPopFuncCalled:   0,
-		HScanFuncCalled:   0,
-		HKeysFuncCalled:   0,
-		LIndexFuncCalled:  0,
-		LLenFuncCalled:    0,
+		SubscribeFunc: func(channels string) (chan Message, ISubscription, error) {
+			return nil, nil, nil
+		},
+		PublishFunc: func(channel string, data []byte) error {
+			return nil
+		},
+		GetFuncCalled:       0,
+		SetFuncCalled:       0,
+		SetNXPXFuncCalled:   0,
+		DelFuncCalled:       0,
+		RPushFuncCalled:     0,
+		LPopFuncCalled:      0,
+		BLPopFuncCalled:     0,
+		HScanFuncCalled:     0,
+		HKeysFuncCalled:     0,
+		LIndexFuncCalled:    0,
+		LLenFuncCalled:      0,
+		SubscribeFuncCalled: 0,
+		PublishFuncCalled:   0,
 	}
 }

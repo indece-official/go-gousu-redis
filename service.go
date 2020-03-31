@@ -38,6 +38,8 @@ type IService interface {
 	HDel(key string, field string) error
 	LIndex(key string, position int) ([]byte, error)
 	LLen(key string) (int, error)
+	Subscribe(channels string) (chan Message, ISubscription, error)
+	Publish(channel string, data []byte) error
 }
 
 // Service provides a service for basic redis client functionality
@@ -259,6 +261,133 @@ func (s *Service) LLen(key string) (int, error) {
 	defer conn.Close()
 
 	return redis.Int(conn.Do("LLEN", key))
+}
+
+// Message is emitted after subscribing to a channel
+type Message struct {
+	Error   error
+	Channel string
+	Data    []byte
+}
+
+// IsError returns if an error occured
+func (m *Message) IsError() bool {
+	return m.Error != nil
+}
+
+// ISubscription defines the interface of Subscription
+type ISubscription interface {
+	Unsubscribe() error
+}
+
+// Subscription is used to track a subscription to a channel via Subscribe(...)
+type Subscription struct {
+	conn *redis.PubSubConn
+}
+
+var _ (ISubscription) = (*Subscription)(nil)
+
+// Unsubscribe unsubscribes from a subscription and closes the connection
+func (s *Subscription) Unsubscribe() error {
+	if s.conn == nil {
+		return fmt.Errorf("No connection")
+	}
+
+	err := s.conn.Unsubscribe()
+	if err != nil {
+		return err
+	}
+
+	err = s.conn.Close()
+	if err != nil {
+		return err
+	}
+
+	s.conn = nil
+
+	return nil
+}
+
+// Subscribe subscribes to channels and returns a subscription
+func (s *Service) Subscribe(channels string) (chan Message, ISubscription, error) {
+	conn := s.pool.Get()
+
+	psc := &redis.PubSubConn{Conn: conn}
+
+	if err := psc.Subscribe(redis.Args{}.AddFlat(channels)); err != nil {
+		return nil, nil, err
+	}
+
+	ready := make(chan error, 1)
+	output := make(chan Message, 1)
+
+	subscription := &Subscription{
+		conn: psc,
+	}
+
+	// Start a goroutine to receive notifications from the server.
+	go func() {
+		for {
+			switch n := psc.Receive().(type) {
+			case error:
+				output <- Message{
+					Error: n,
+				}
+				return
+			case redis.Message:
+				output <- Message{
+					Channel: n.Channel,
+					Data:    n.Data,
+				}
+			case redis.Subscription:
+				switch n.Count {
+				case len(channels):
+					// Successfully subscribed to all channels
+					ready <- nil
+				case 0:
+					// Return from the goroutine when all channels got unsubscribed
+					return
+				}
+			}
+		}
+	}()
+
+	err := <-ready
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Start loop for pinging to check if connection is still alive
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for subscription.conn != nil {
+			<-ticker.C
+			// Send ping to test health of connection and server. If
+			// corresponding pong is not received, then receive on the
+			// connection will timeout and the receive goroutine will exit.
+			if err := psc.Ping(""); err != nil {
+				output <- Message{
+					Error: err,
+				}
+
+				subscription.Unsubscribe()
+			}
+		}
+	}()
+
+	return output, subscription, nil
+}
+
+// Publish emits a message on a channel
+func (s *Service) Publish(channel string, data []byte) error {
+	conn := s.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("PUBLISH", channel, data)
+
+	return err
 }
 
 // NewService is the ServiceFactory for redis service
