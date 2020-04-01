@@ -318,7 +318,6 @@ func (s *Service) Subscribe(channels []string) (chan Message, ISubscription, err
 		return nil, nil, err
 	}
 
-	ready := make(chan error, 1)
 	output := make(chan Message, 1)
 
 	subscription := &Subscription{
@@ -327,17 +326,11 @@ func (s *Service) Subscribe(channels []string) (chan Message, ISubscription, err
 
 	// Start a goroutine to receive notifications from the server.
 	go func() {
-		isReady := false
-
-		for {
-			switch n := psc.Receive().(type) {
+		for subscription.conn != nil {
+			switch n := subscription.conn.Receive().(type) {
 			case error:
-				if isReady {
-					output <- Message{
-						Error: n,
-					}
-				} else {
-					ready <- n
+				output <- Message{
+					Error: n,
 				}
 				return
 			case redis.Message:
@@ -347,10 +340,6 @@ func (s *Service) Subscribe(channels []string) (chan Message, ISubscription, err
 				}
 			case redis.Subscription:
 				switch n.Count {
-				case len(channels):
-					// Successfully subscribed to all channels
-					isReady = true
-					ready <- nil
 				case 0:
 					// Return from the goroutine when all channels got unsubscribed
 					return
@@ -358,11 +347,6 @@ func (s *Service) Subscribe(channels []string) (chan Message, ISubscription, err
 			}
 		}
 	}()
-
-	err := <-ready
-	if err != nil {
-		return nil, nil, err
-	}
 
 	// Start loop for pinging to check if connection is still alive
 	go func() {
