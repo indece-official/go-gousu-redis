@@ -314,7 +314,7 @@ func (s *Service) Subscribe(channels []string) (chan Message, ISubscription, err
 
 	psc := &redis.PubSubConn{Conn: conn}
 
-	if err := psc.Subscribe(redis.Args{}.AddFlat(channels)); err != nil {
+	if err := psc.Subscribe(redis.Args{}.AddFlat(channels)...); err != nil {
 		return nil, nil, err
 	}
 
