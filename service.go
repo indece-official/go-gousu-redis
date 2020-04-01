@@ -28,6 +28,7 @@ type IService interface {
 	Set(key string, data []byte) error
 	SetNXPX(key string, data []byte, timeoutMS int) error
 	Del(key string) error
+	Exists(key string) (bool, error)
 	Scan(pattern string, cursor int) (int, []string, error)
 	RPush(key string, data []byte) error
 	LPop(key string) ([]byte, error)
@@ -148,6 +149,19 @@ func (s *Service) Del(key string) error {
 	_, err := conn.Do("DEL", key)
 
 	return err
+}
+
+// Exists checks if a key exists in redis
+func (s *Service) Exists(key string) (bool, error) {
+	conn := s.pool.Get()
+	defer conn.Close()
+
+	exists, err := redis.Int(conn.Do("EXISTS", key))
+	if err != nil {
+		return false, err
+	}
+
+	return exists >= 1, nil
 }
 
 // Scan scans all keys for a specific pattern and returns a list of keys

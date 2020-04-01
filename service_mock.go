@@ -10,6 +10,7 @@ type MockService struct {
 	SetFunc             func(key string, data []byte) error
 	SetNXPXFunc         func(key string, data []byte, timeoutMS int) error
 	DelFunc             func(key string) error
+	ExistsFunc          func(key string) (bool, error)
 	ScanFunc            func(pattern string, cursor int) (int, []string, error)
 	RPushFunc           func(key string, data []byte) error
 	LPopFunc            func(key string) ([]byte, error)
@@ -27,6 +28,7 @@ type MockService struct {
 	SetFuncCalled       int
 	SetNXPXFuncCalled   int
 	DelFuncCalled       int
+	ExistsFuncCalled    int
 	ScanFuncCalled      int
 	RPushFuncCalled     int
 	LPopFuncCalled      int
@@ -71,6 +73,13 @@ func (s *MockService) Del(key string) error {
 	s.DelFuncCalled++
 
 	return s.DelFunc(key)
+}
+
+// Exists calls ExistsFunc and increases ExistsFuncCalled
+func (s *MockService) Exists(key string) (bool, error) {
+	s.ExistsFuncCalled++
+
+	return s.ExistsFunc(key)
 }
 
 // Scan calls ScanFunc and increases ScanFuncCalled
@@ -185,6 +194,9 @@ func NewMockService() *MockService {
 		DelFunc: func(key string) error {
 			return nil
 		},
+		ExistsFunc: func(key string) (bool, error) {
+			return false, nil
+		},
 		ScanFunc: func(pattern string, cursor int) (int, []string, error) {
 			return 0, []string{}, nil
 		},
@@ -224,18 +236,5 @@ func NewMockService() *MockService {
 		PublishFunc: func(channel string, data []byte) error {
 			return nil
 		},
-		GetFuncCalled:       0,
-		SetFuncCalled:       0,
-		SetNXPXFuncCalled:   0,
-		DelFuncCalled:       0,
-		RPushFuncCalled:     0,
-		LPopFuncCalled:      0,
-		BLPopFuncCalled:     0,
-		HScanFuncCalled:     0,
-		HKeysFuncCalled:     0,
-		LIndexFuncCalled:    0,
-		LLenFuncCalled:      0,
-		SubscribeFuncCalled: 0,
-		PublishFuncCalled:   0,
 	}
 }
