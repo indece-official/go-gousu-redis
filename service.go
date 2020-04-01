@@ -28,6 +28,7 @@ type IService interface {
 	Set(key string, data []byte) error
 	SetNXPX(key string, data []byte, timeoutMS int) error
 	Del(key string) error
+	Scan(pattern string, cursor int) (int, []string, error)
 	RPush(key string, data []byte) error
 	LPop(key string) ([]byte, error)
 	BLPop(key string, timeout int) ([]byte, error)
@@ -147,6 +148,26 @@ func (s *Service) Del(key string) error {
 	_, err := conn.Do("DEL", key)
 
 	return err
+}
+
+// Scan scans all keys for a specific pattern and returns a list of keys
+func (s *Service) Scan(pattern string, cursor int) (int, []string, error) {
+	keys := make([]string, 0)
+
+	conn := s.pool.Get()
+	defer conn.Close()
+
+	resp, err := redis.Values(conn.Do("SCAN", cursor, "MATCH", pattern))
+	if err != nil {
+		return 0, nil, err
+	}
+
+	_, err = redis.Scan(resp, &cursor, &keys)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return cursor, keys, nil
 }
 
 // RPush appends an item to a list

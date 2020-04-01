@@ -10,6 +10,7 @@ type MockService struct {
 	SetFunc             func(key string, data []byte) error
 	SetNXPXFunc         func(key string, data []byte, timeoutMS int) error
 	DelFunc             func(key string) error
+	ScanFunc            func(pattern string, cursor int) (int, []string, error)
 	RPushFunc           func(key string, data []byte) error
 	LPopFunc            func(key string) ([]byte, error)
 	BLPopFunc           func(key string, timeout int) ([]byte, error)
@@ -26,6 +27,7 @@ type MockService struct {
 	SetFuncCalled       int
 	SetNXPXFuncCalled   int
 	DelFuncCalled       int
+	ScanFuncCalled      int
 	RPushFuncCalled     int
 	LPopFuncCalled      int
 	BLPopFuncCalled     int
@@ -69,6 +71,13 @@ func (s *MockService) Del(key string) error {
 	s.DelFuncCalled++
 
 	return s.DelFunc(key)
+}
+
+// Scan calls ScanFunc and increases ScanFuncCalled
+func (s *MockService) Scan(pattern string, cursor int) (int, []string, error) {
+	s.ScanFuncCalled++
+
+	return s.ScanFunc(pattern, cursor)
 }
 
 // RPush calls RPushFunc and increases RPushFuncCalled
@@ -175,6 +184,9 @@ func NewMockService() *MockService {
 		},
 		DelFunc: func(key string) error {
 			return nil
+		},
+		ScanFunc: func(pattern string, cursor int) (int, []string, error) {
+			return 0, []string{}, nil
 		},
 		RPushFunc: func(key string, data []byte) error {
 			return nil
