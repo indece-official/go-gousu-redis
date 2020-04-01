@@ -38,7 +38,7 @@ type IService interface {
 	HDel(key string, field string) error
 	LIndex(key string, position int) ([]byte, error)
 	LLen(key string) (int, error)
-	Subscribe(channels string) (chan Message, ISubscription, error)
+	Subscribe(channels []string) (chan Message, ISubscription, error)
 	Publish(channel string, data []byte) error
 }
 
@@ -309,7 +309,7 @@ func (s *Subscription) Unsubscribe() error {
 }
 
 // Subscribe subscribes to channels and returns a subscription
-func (s *Service) Subscribe(channels string) (chan Message, ISubscription, error) {
+func (s *Service) Subscribe(channels []string) (chan Message, ISubscription, error) {
 	conn := s.pool.Get()
 
 	psc := &redis.PubSubConn{Conn: conn}

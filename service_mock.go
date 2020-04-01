@@ -20,7 +20,7 @@ type MockService struct {
 	HDelFunc            func(key string, field string) error
 	LIndexFunc          func(key string, position int) ([]byte, error)
 	LLenFunc            func(key string) (int, error)
-	SubscribeFunc       func(channels string) (chan Message, ISubscription, error)
+	SubscribeFunc       func(channels []string) (chan Message, ISubscription, error)
 	PublishFunc         func(channel string, data []byte) error
 	GetFuncCalled       int
 	SetFuncCalled       int
@@ -142,7 +142,7 @@ func (s *MockService) LLen(key string) (int, error) {
 }
 
 // Subscribe calls SubscribeFunc and increases SubscribeFunc
-func (s *MockService) Subscribe(channels string) (chan Message, ISubscription, error) {
+func (s *MockService) Subscribe(channels []string) (chan Message, ISubscription, error) {
 	s.SubscribeFuncCalled++
 
 	return s.SubscribeFunc(channels)
@@ -206,7 +206,7 @@ func NewMockService() *MockService {
 		LLenFunc: func(key string) (int, error) {
 			return 0, nil
 		},
-		SubscribeFunc: func(channels string) (chan Message, ISubscription, error) {
+		SubscribeFunc: func(channels []string) (chan Message, ISubscription, error) {
 			return nil, nil, nil
 		},
 		PublishFunc: func(channel string, data []byte) error {
