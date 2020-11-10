@@ -1,11 +1,15 @@
 package gousuredis
 
-import "github.com/indece-official/go-gousu"
+import (
+	"github.com/gomodule/redigo/redis"
+	"github.com/indece-official/go-gousu"
+)
 
 // MockService for simply mocking IService
 type MockService struct {
 	gousu.MockService
 
+	GetPoolFunc         func() *redis.Pool
 	GetFunc             func(key string) ([]byte, error)
 	SetFunc             func(key string, data []byte) error
 	SetNXPXFunc         func(key string, data []byte, timeoutMS int) error
@@ -24,6 +28,7 @@ type MockService struct {
 	LLenFunc            func(key string) (int, error)
 	SubscribeFunc       func(channels []string) (chan Message, ISubscription, error)
 	PublishFunc         func(channel string, data []byte) error
+	GetPoolFuncCalled   int
 	GetFuncCalled       int
 	SetFuncCalled       int
 	SetNXPXFuncCalled   int
@@ -46,6 +51,13 @@ type MockService struct {
 
 // MockService implements IService
 var _ (IService) = (*MockService)(nil)
+
+// GetPool calls GetPoolFunc and increases GetPoolFuncCalled
+func (s *MockService) GetPool() *redis.Pool {
+	s.GetPoolFuncCalled++
+
+	return s.GetPoolFunc()
+}
 
 // Get calls GetFunc and increases GetFuncCalled
 func (s *MockService) Get(key string) ([]byte, error) {
@@ -182,6 +194,9 @@ func NewMockService() *MockService {
 			},
 		},
 
+		GetPoolFunc: func() *redis.Pool {
+			return nil
+		},
 		GetFunc: func(key string) ([]byte, error) {
 			return []byte{}, nil
 		},

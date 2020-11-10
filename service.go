@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/garyburd/redigo/redis"
+	"github.com/gomodule/redigo/redis"
 	"github.com/indece-official/go-gousu"
 	"github.com/namsral/flag"
 )
@@ -24,6 +24,7 @@ var ErrNil = redis.ErrNil
 type IService interface {
 	gousu.IService
 
+	GetPool() *redis.Pool
 	Get(key string) ([]byte, error)
 	Set(key string, data []byte) error
 	SetNXPX(key string, data []byte, timeoutMS int) error
@@ -341,6 +342,11 @@ func (s *Subscription) Unsubscribe() error {
 	s.conn = nil
 
 	return nil
+}
+
+// GetPool returns the redis connection pool
+func (s *Service) GetPool() *redis.Pool {
+	return s.pool
 }
 
 // Subscribe subscribes to channels and returns a subscription
