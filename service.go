@@ -35,6 +35,7 @@ type IService interface {
 	LPush(key string, data []byte) (int, error)
 	LRange(key string, start int, stop int) ([][]byte, error)
 	LPop(key string) ([]byte, error)
+	RPop(key string) ([]byte, error)
 	BLPop(key string, timeout int) ([]byte, error)
 	HGet(key string, field string) ([]byte, error)
 	HSet(key string, field string, data []byte) error
@@ -217,6 +218,14 @@ func (s *Service) LPop(key string) ([]byte, error) {
 	defer conn.Close()
 
 	return redis.Bytes(conn.Do("LPOP", key))
+}
+
+// RPop returns the oldest item from a list (non-blocking)
+func (s *Service) RPop(key string) ([]byte, error) {
+	conn := s.pool.Get()
+	defer conn.Close()
+
+	return redis.Bytes(conn.Do("RPOP", key))
 }
 
 // BLPop waits for a new item in a list (blocking with timeout)
