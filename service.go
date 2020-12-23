@@ -31,7 +31,9 @@ type IService interface {
 	Del(key string) error
 	Exists(key string) (bool, error)
 	Scan(pattern string, cursor int) (int, []string, error)
-	RPush(key string, data []byte) error
+	RPush(key string, data []byte) (int, error)
+	LPush(key string, data []byte) (int, error)
+	LRange(key string, start int, stop int) ([][]byte, error)
 	LPop(key string) ([]byte, error)
 	BLPop(key string, timeout int) ([]byte, error)
 	HGet(key string, field string) ([]byte, error)
@@ -186,13 +188,27 @@ func (s *Service) Scan(pattern string, cursor int) (int, []string, error) {
 }
 
 // RPush appends an item to a list
-func (s *Service) RPush(key string, data []byte) error {
+func (s *Service) RPush(key string, data []byte) (int, error) {
 	conn := s.pool.Get()
 	defer conn.Close()
 
-	_, err := conn.Do("RPUSH", key, data)
+	return redis.Int(conn.Do("RPUSH", key, data))
+}
 
-	return err
+// LPush prepends an item to a list
+func (s *Service) LPush(key string, data []byte) (int, error) {
+	conn := s.pool.Get()
+	defer conn.Close()
+
+	return redis.Int(conn.Do("LPUSH", key, data))
+}
+
+// LRange loads elements from a list
+func (s *Service) LRange(key string, start int, stop int) ([][]byte, error) {
+	conn := s.pool.Get()
+	defer conn.Close()
+
+	return redis.ByteSlices(conn.Do("LRANGE", key, start, stop))
 }
 
 // LPop returns the newest item from a list (non-blocking)
@@ -214,7 +230,7 @@ func (s *Service) BLPop(key string, timeout int) ([]byte, error) {
 	}
 
 	if len(result) < 2 || result[0] == nil || result[1] == nil {
-		return nil, redis.ErrNil
+		return nil, ErrNil
 	}
 
 	return result[1], err
