@@ -16,8 +16,11 @@ type MockService struct {
 	DelFunc             func(key string) error
 	ExistsFunc          func(key string) (bool, error)
 	ScanFunc            func(pattern string, cursor int) (int, []string, error)
-	RPushFunc           func(key string, data []byte) error
+	RPushFunc           func(key string, data []byte) (int, error)
+	LPushFunc           func(key string, data []byte) (int, error)
+	LRangeFunc          func(key string, start int, stop int) ([][]byte, error)
 	LPopFunc            func(key string) ([]byte, error)
+	RPopFunc            func(key string) ([]byte, error)
 	BLPopFunc           func(key string, timeout int) ([]byte, error)
 	HGetFunc            func(key string, field string) ([]byte, error)
 	HSetFunc            func(key string, field string, data []byte) error
@@ -36,7 +39,10 @@ type MockService struct {
 	ExistsFuncCalled    int
 	ScanFuncCalled      int
 	RPushFuncCalled     int
+	LPushFuncCalled     int
+	LRangeFuncCalled    int
 	LPopFuncCalled      int
+	RPopFuncCalled      int
 	BLPopFuncCalled     int
 	HGetFuncCalled      int
 	HSetFuncCalled      int
@@ -102,10 +108,24 @@ func (s *MockService) Scan(pattern string, cursor int) (int, []string, error) {
 }
 
 // RPush calls RPushFunc and increases RPushFuncCalled
-func (s *MockService) RPush(key string, data []byte) error {
+func (s *MockService) RPush(key string, data []byte) (int, error) {
 	s.RPushFuncCalled++
 
 	return s.RPushFunc(key, data)
+}
+
+// LPush calls LPushFunc and increases LPushFuncCalled
+func (s *MockService) LPush(key string, data []byte) (int, error) {
+	s.LPushFuncCalled++
+
+	return s.LPushFunc(key, data)
+}
+
+// LRange calls LRangeFunc and increases LRangeFuncCalled
+func (s *MockService) LRange(key string, start int, stop int) ([][]byte, error) {
+	s.LRangeFuncCalled++
+
+	return s.LRangeFunc(key, start, stop)
 }
 
 // LPop calls LPopFunc and increases LPopFuncCalled
@@ -113,6 +133,13 @@ func (s *MockService) LPop(key string) ([]byte, error) {
 	s.LPopFuncCalled++
 
 	return s.LPopFunc(key)
+}
+
+// RPop calls RPopFunc and increases RPopFuncCalled
+func (s *MockService) RPop(key string) ([]byte, error) {
+	s.RPopFuncCalled++
+
+	return s.RPopFunc(key)
 }
 
 // BLPop calls BLPopFunc and increases BLPopFuncCalled
@@ -215,10 +242,19 @@ func NewMockService() *MockService {
 		ScanFunc: func(pattern string, cursor int) (int, []string, error) {
 			return 0, []string{}, nil
 		},
-		RPushFunc: func(key string, data []byte) error {
-			return nil
+		RPushFunc: func(key string, data []byte) (int, error) {
+			return 0, nil
+		},
+		LPushFunc: func(key string, data []byte) (int, error) {
+			return 0, nil
+		},
+		LRangeFunc: func(key string, start int, stop int) ([][]byte, error) {
+			return [][]byte{}, nil
 		},
 		LPopFunc: func(key string) ([]byte, error) {
+			return []byte{}, nil
+		},
+		RPopFunc: func(key string) ([]byte, error) {
 			return []byte{}, nil
 		},
 		BLPopFunc: func(key string, timeout int) ([]byte, error) {
