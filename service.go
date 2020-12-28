@@ -42,6 +42,7 @@ type IService interface {
 	HScan(key string, cursor int) (int, map[string][]byte, error)
 	HKeys(key string) ([][]byte, error)
 	HDel(key string, field string) error
+	HLen(key string) (int, error)
 	LIndex(key string, position int) ([]byte, error)
 	LLen(key string) (int, error)
 	Subscribe(channels []string) (chan Message, ISubscription, error)
@@ -306,6 +307,14 @@ func (s *Service) HDel(key string, field string) error {
 	_, err := conn.Do("HDEL", key, field)
 
 	return err
+}
+
+// HLen gets the length of the map stored at key
+func (s *Service) HLen(key string) (int, error) {
+	conn := s.pool.Get()
+	defer conn.Close()
+
+	return redis.Int(conn.Do("HLEN", key))
 }
 
 // LIndex gets the element at index in the list stored at key
