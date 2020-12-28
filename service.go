@@ -28,6 +28,7 @@ type IService interface {
 	Get(key string) ([]byte, error)
 	Set(key string, data []byte) error
 	SetNXPX(key string, data []byte, timeoutMS int) error
+	SetPX(key string, data []byte, timeoutMS int) error
 	Del(key string) error
 	Exists(key string) (bool, error)
 	Scan(pattern string, cursor int) (int, []string, error)
@@ -136,12 +137,22 @@ func (s *Service) Set(key string, data []byte) error {
 	return err
 }
 
-// SetNXPX stores a key and its value with expiration time in redis
+// SetNXPX stores a key and its value if it does not exist with expiration time in redis
 func (s *Service) SetNXPX(key string, data []byte, timeoutMS int) error {
 	conn := s.pool.Get()
 	defer conn.Close()
 
 	_, err := conn.Do("SET", key, data, "NX", "PX", timeoutMS)
+
+	return err
+}
+
+// SetPX stores a key and its value with expiration time in redis
+func (s *Service) SetPX(key string, data []byte, timeoutMS int) error {
+	conn := s.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("SET", key, data, "PX", timeoutMS)
 
 	return err
 }

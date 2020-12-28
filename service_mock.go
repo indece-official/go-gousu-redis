@@ -13,6 +13,7 @@ type MockService struct {
 	GetFunc             func(key string) ([]byte, error)
 	SetFunc             func(key string, data []byte) error
 	SetNXPXFunc         func(key string, data []byte, timeoutMS int) error
+	SetPXFunc           func(key string, data []byte, timeoutMS int) error
 	DelFunc             func(key string) error
 	ExistsFunc          func(key string) (bool, error)
 	ScanFunc            func(pattern string, cursor int) (int, []string, error)
@@ -36,6 +37,7 @@ type MockService struct {
 	GetFuncCalled       int
 	SetFuncCalled       int
 	SetNXPXFuncCalled   int
+	SetPXFuncCalled     int
 	DelFuncCalled       int
 	ExistsFuncCalled    int
 	ScanFuncCalled      int
@@ -86,6 +88,13 @@ func (s *MockService) SetNXPX(key string, data []byte, timeoutMS int) error {
 	s.SetNXPXFuncCalled++
 
 	return s.SetNXPXFunc(key, data, timeoutMS)
+}
+
+// SetPX calls SetPXFunc and increases SetPXFuncCalled
+func (s *MockService) SetPX(key string, data []byte, timeoutMS int) error {
+	s.SetPXFuncCalled++
+
+	return s.SetPXFunc(key, data, timeoutMS)
 }
 
 // Del calls DelFunc and increases DelFuncCalled
@@ -240,6 +249,9 @@ func NewMockService() *MockService {
 			return nil
 		},
 		SetNXPXFunc: func(key string, data []byte, timeoutMS int) error {
+			return nil
+		},
+		SetPXFunc: func(key string, data []byte, timeoutMS int) error {
 			return nil
 		},
 		DelFunc: func(key string) error {
