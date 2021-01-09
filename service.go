@@ -358,7 +358,9 @@ func (m *Message) IsError() bool {
 
 // ISubscription defines the interface of Subscription
 type ISubscription interface {
-	Unsubscribe() error
+	Subscribe(channel ...interface{}) error
+	Unsubscribe(channel ...interface{}) error
+	Close() error
 }
 
 // Subscription is used to track a subscription to a channel via Subscribe(...)
@@ -368,8 +370,26 @@ type Subscription struct {
 
 var _ (ISubscription) = (*Subscription)(nil)
 
-// Unsubscribe unsubscribes from a subscription and closes the connection
-func (s *Subscription) Unsubscribe() error {
+// Subscribe subscribes to one or multiple channels
+func (s *Subscription) Subscribe(channel ...interface{}) error {
+	if s.conn == nil {
+		return fmt.Errorf("No connection")
+	}
+
+	return s.conn.Subscribe(channel...)
+}
+
+// Unsubscribe unsubscribes from one or multiple channels
+func (s *Subscription) Unsubscribe(channel ...interface{}) error {
+	if s.conn == nil {
+		return fmt.Errorf("No connection")
+	}
+
+	return s.conn.Unsubscribe(channel...)
+}
+
+// Close unsubscribes from all subscriptions and closes the connection
+func (s *Subscription) Close() error {
 	if s.conn == nil {
 		return fmt.Errorf("No connection")
 	}
