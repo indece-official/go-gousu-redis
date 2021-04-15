@@ -92,15 +92,17 @@ func (s *Service) Name() string {
 func (s *Service) Start() error {
 	var err error
 
-	s.log.Infof("Connecting to redis on %s:%d ...", *redisHost, *redisPort)
-
 	if *redisClusterMode {
+		s.log.Infof("Connecting to redis cluster on %s:%d ...", *redisHost, *redisPort)
+
 		s.cluster = &redisc.Cluster{
 			StartupNodes: []string{fmt.Sprintf("%s:%d", *redisHost, *redisPort)},
 			DialOptions:  []redis.DialOption{redis.DialConnectTimeout(5 * time.Second)},
 			CreatePool:   s.createPool,
 		}
 	} else {
+		s.log.Infof("Connecting to redis on %s:%d ...", *redisHost, *redisPort)
+
 		s.pool, err = s.createPool(fmt.Sprintf("%s:%d", *redisHost, *redisPort))
 		if err != nil {
 			return err
