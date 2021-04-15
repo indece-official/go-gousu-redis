@@ -6,6 +6,7 @@ import (
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/indece-official/go-gousu"
+	"github.com/mna/redisc"
 	"github.com/namsral/flag"
 )
 
@@ -13,8 +14,12 @@ import (
 const ServiceName = "redis"
 
 var (
-	redisHost = flag.String("redis_host", "127.0.0.1", "Redis host")
-	redisPort = flag.Int("redis_port", 6379, "Redis port")
+	redisHost        = flag.String("redis_host", "127.0.0.1", "Redis host")
+	redisPort        = flag.Int("redis_port", 6379, "Redis port")
+	redisMaxIdle     = flag.Int("redis_max_idle", 3, "Redis maximum idle connections")
+	redisMaxActive   = flag.Int("redis_max_active", 50, "Redis maximum active connections")
+	redisIdleTimeout = flag.Int("redis_idle_timeout", 240, "Redis idle connection timeout")
+	redisClusterMode = flag.Bool("redis_cluster", false, "Redis cluster mode")
 )
 
 // ErrNil is the error returned if no matching data was found
@@ -56,11 +61,27 @@ type IService interface {
 //   * redis_host Hostname of redis service
 //   * redis_port Port of redis service
 type Service struct {
-	log  *gousu.Log
-	pool *redis.Pool
+	log     *gousu.Log
+	pool    *redis.Pool
+	cluster *redisc.Cluster
 }
 
 var _ IService = (*Service)(nil)
+
+func (s *Service) createPool(addr string, opts ...redis.DialOption) (*redis.Pool, error) {
+	return &redis.Pool{
+		MaxIdle:     *redisMaxIdle,
+		MaxActive:   *redisMaxActive,
+		IdleTimeout: time.Duration(*redisIdleTimeout) * time.Second,
+		Dial: func() (redis.Conn, error) {
+			return redis.Dial("tcp", addr, opts...)
+		},
+		TestOnBorrow: func(c redis.Conn, t time.Time) error {
+			_, err := c.Do("PING")
+			return err
+		},
+	}, nil
+}
 
 // Name returns the name of redis service from ServiceName
 func (s *Service) Name() string {
@@ -69,46 +90,67 @@ func (s *Service) Name() string {
 
 // Start connects to the redis pool
 func (s *Service) Start() error {
+	var err error
+
 	s.log.Infof("Connecting to redis on %s:%d ...", *redisHost, *redisPort)
 
-	s.pool = &redis.Pool{
-		MaxIdle:     3,
-		IdleTimeout: 240 * time.Second,
-
-		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", fmt.Sprintf("%s:%d", *redisHost, *redisPort))
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		},
-
-		TestOnBorrow: func(c redis.Conn, t time.Time) error {
-			_, err := c.Do("PING")
+	if *redisClusterMode {
+		s.cluster = &redisc.Cluster{
+			StartupNodes: []string{fmt.Sprintf("%s:%d", *redisHost, *redisPort)},
+			DialOptions:  []redis.DialOption{redis.DialConnectTimeout(5 * time.Second)},
+			CreatePool:   s.createPool,
+		}
+	} else {
+		s.pool, err = s.createPool(fmt.Sprintf("%s:%d", *redisHost, *redisPort))
+		if err != nil {
 			return err
-		},
+		}
 	}
 
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
-	_, err := conn.Do("PING")
+	_, err = conn.Do("PING")
 	if err != nil {
-		return fmt.Errorf("Can't connect to redis: %s", err)
+		return fmt.Errorf("can't ping redis: %s", err)
 	}
 
 	return nil
 }
 
+func (s *Service) openConn(useRetry bool) (redis.Conn, error) {
+	if s.cluster != nil {
+		conn := s.cluster.Get()
+		if !useRetry {
+			return conn, nil
+		}
+
+		// make it handle redirections automatically
+		rc, err := redisc.RetryConn(conn, 3, 100*time.Millisecond)
+		if err != nil {
+			return nil, fmt.Errorf("retry failed: %s", err)
+		}
+
+		return rc, nil
+	} else {
+		return s.pool.Get(), nil
+	}
+}
+
 // Health checks the health of the Service by pinging the redis database
 func (s *Service) Health() error {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
-	_, err := conn.Do("PING")
-
+	_, err = conn.Do("PING")
 	if err != nil {
-		return fmt.Errorf("Redis service unhealthy: %s", err)
+		return fmt.Errorf("redis service unhealthy: %s", err)
 	}
 
 	return nil
@@ -116,12 +158,19 @@ func (s *Service) Health() error {
 
 // Stop closes all redis pool connections
 func (s *Service) Stop() error {
-	return s.pool.Close()
+	if s.cluster != nil {
+		return s.cluster.Close()
+	} else {
+		return s.pool.Close()
+	}
 }
 
 // Get retrieves a key's value from redis
 func (s *Service) Get(key string) ([]byte, error) {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return nil, fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
 	return redis.Bytes(conn.Do("GET", key))
@@ -129,47 +178,62 @@ func (s *Service) Get(key string) ([]byte, error) {
 
 // Set stores a key and its value in redis
 func (s *Service) Set(key string, data []byte) error {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
-	_, err := conn.Do("SET", key, data)
+	_, err = conn.Do("SET", key, data)
 
 	return err
 }
 
 // SetNXPX stores a key and its value if it does not exist with expiration time in redis
 func (s *Service) SetNXPX(key string, data []byte, timeoutMS int) error {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
-	_, err := conn.Do("SET", key, data, "NX", "PX", timeoutMS)
+	_, err = conn.Do("SET", key, data, "NX", "PX", timeoutMS)
 
 	return err
 }
 
 // SetPX stores a key and its value with expiration time in redis
 func (s *Service) SetPX(key string, data []byte, timeoutMS int) error {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
-	_, err := conn.Do("SET", key, data, "PX", timeoutMS)
+	_, err = conn.Do("SET", key, data, "PX", timeoutMS)
 
 	return err
 }
 
 // Del deletes a key from redis
 func (s *Service) Del(key string) error {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
-	_, err := conn.Do("DEL", key)
+	_, err = conn.Do("DEL", key)
 
 	return err
 }
 
 // Exists checks if a key exists in redis
 func (s *Service) Exists(key string) (bool, error) {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return false, fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
 	exists, err := redis.Int(conn.Do("EXISTS", key))
@@ -184,7 +248,10 @@ func (s *Service) Exists(key string) (bool, error) {
 func (s *Service) Scan(pattern string, cursor int) (int, []string, error) {
 	keys := make([]string, 0)
 
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return 0, nil, fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
 	resp, err := redis.Values(conn.Do("SCAN", cursor, "MATCH", pattern))
@@ -202,7 +269,10 @@ func (s *Service) Scan(pattern string, cursor int) (int, []string, error) {
 
 // RPush appends an item to a list
 func (s *Service) RPush(key string, data []byte) (int, error) {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return 0, fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
 	return redis.Int(conn.Do("RPUSH", key, data))
@@ -210,7 +280,10 @@ func (s *Service) RPush(key string, data []byte) (int, error) {
 
 // LPush prepends an item to a list
 func (s *Service) LPush(key string, data []byte) (int, error) {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return 0, fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
 	return redis.Int(conn.Do("LPUSH", key, data))
@@ -218,7 +291,10 @@ func (s *Service) LPush(key string, data []byte) (int, error) {
 
 // LRange loads elements from a list
 func (s *Service) LRange(key string, start int, stop int) ([][]byte, error) {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return nil, fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
 	return redis.ByteSlices(conn.Do("LRANGE", key, start, stop))
@@ -226,7 +302,10 @@ func (s *Service) LRange(key string, start int, stop int) ([][]byte, error) {
 
 // LPop returns the newest item from a list (non-blocking)
 func (s *Service) LPop(key string) ([]byte, error) {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return nil, fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
 	return redis.Bytes(conn.Do("LPOP", key))
@@ -234,7 +313,10 @@ func (s *Service) LPop(key string) ([]byte, error) {
 
 // RPop returns the oldest item from a list (non-blocking)
 func (s *Service) RPop(key string) ([]byte, error) {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return nil, fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
 	return redis.Bytes(conn.Do("RPOP", key))
@@ -242,7 +324,10 @@ func (s *Service) RPop(key string) ([]byte, error) {
 
 // BLPop waits for a new item in a list (blocking with timeout)
 func (s *Service) BLPop(key string, timeout int) ([]byte, error) {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return nil, fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
 	result, err := redis.ByteSlices(conn.Do("BLPOP", key, timeout))
@@ -259,7 +344,10 @@ func (s *Service) BLPop(key string, timeout int) ([]byte, error) {
 
 // HGet retrieves a hash value from redis
 func (s *Service) HGet(key string, field string) ([]byte, error) {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return nil, fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
 	return redis.Bytes(conn.Do("HGET", key, field))
@@ -267,10 +355,13 @@ func (s *Service) HGet(key string, field string) ([]byte, error) {
 
 // HSet stores a key and its value in a hash in redis
 func (s *Service) HSet(key string, field string, data []byte) error {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
-	_, err := conn.Do("HSET", key, field, data)
+	_, err = conn.Do("HSET", key, field, data)
 
 	return err
 }
@@ -279,7 +370,10 @@ func (s *Service) HSet(key string, field string, data []byte) error {
 func (s *Service) HScan(key string, cursor int) (int, map[string][]byte, error) {
 	arr := make([][]byte, 0)
 
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return 0, nil, fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
 	resp, err := redis.Values(conn.Do("HSCAN", key, cursor))
@@ -304,7 +398,10 @@ func (s *Service) HScan(key string, cursor int) (int, map[string][]byte, error) 
 
 // HKeys gets all field names in the hash stored at key
 func (s *Service) HKeys(key string) ([][]byte, error) {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return nil, fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
 	return redis.ByteSlices(conn.Do("HKEYS", key))
@@ -312,17 +409,23 @@ func (s *Service) HKeys(key string) ([][]byte, error) {
 
 // HDel deletes a field from a hash
 func (s *Service) HDel(key string, field string) error {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
-	_, err := conn.Do("HDEL", key, field)
+	_, err = conn.Do("HDEL", key, field)
 
 	return err
 }
 
 // HLen gets the length of the map stored at key
 func (s *Service) HLen(key string) (int, error) {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return 0, fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
 	return redis.Int(conn.Do("HLEN", key))
@@ -330,7 +433,10 @@ func (s *Service) HLen(key string) (int, error) {
 
 // LIndex gets the element at index in the list stored at key
 func (s *Service) LIndex(key string, position int) ([]byte, error) {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return nil, fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
 	return redis.Bytes(conn.Do("LINDEX", key, position))
@@ -338,7 +444,10 @@ func (s *Service) LIndex(key string, position int) ([]byte, error) {
 
 // LLen gets the length of the list stored at key
 func (s *Service) LLen(key string) (int, error) {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return 0, fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
 	return redis.Int(conn.Do("LLEN", key))
@@ -371,7 +480,7 @@ var _ (ISubscription) = (*Subscription)(nil)
 // Unsubscribe unsubscribes from a subscription and closes the connection
 func (s *Subscription) Unsubscribe() error {
 	if s.conn == nil {
-		return fmt.Errorf("No connection")
+		return fmt.Errorf("no connection")
 	}
 
 	err := s.conn.Unsubscribe()
@@ -396,7 +505,10 @@ func (s *Service) GetPool() *redis.Pool {
 
 // Subscribe subscribes to channels and returns a subscription
 func (s *Service) Subscribe(channels []string) (chan Message, ISubscription, error) {
-	conn := s.pool.Get()
+	conn, err := s.openConn(false)
+	if err != nil {
+		return nil, nil, fmt.Errorf("can't connect to redis: %s", err)
+	}
 
 	psc := &redis.PubSubConn{Conn: conn}
 
@@ -459,10 +571,13 @@ func (s *Service) Subscribe(channels []string) (chan Message, ISubscription, err
 
 // Publish emits a message on a channel
 func (s *Service) Publish(channel string, data []byte) error {
-	conn := s.pool.Get()
+	conn, err := s.openConn(true)
+	if err != nil {
+		return fmt.Errorf("can't connect to redis: %s", err)
+	}
 	defer conn.Close()
 
-	_, err := conn.Do("PUBLISH", channel, data)
+	_, err = conn.Do("PUBLISH", channel, data)
 
 	return err
 }
