@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-redsync/redsync/v4"
+	redsyncredis "github.com/go-redsync/redsync/v4/redis"
 	"github.com/gomodule/redigo/redis"
 	"github.com/indece-official/go-gousu"
 	"github.com/mna/redisc"
@@ -29,6 +31,7 @@ var ErrNil = redis.ErrNil
 type IService interface {
 	gousu.IService
 
+	NewMutex(name string, options ...redsync.Option) *redsync.Mutex
 	GetPool() *redis.Pool
 	Get(key string) ([]byte, error)
 	Set(key string, data []byte) error
@@ -61,9 +64,10 @@ type IService interface {
 //   * redis_host Hostname of redis service
 //   * redis_port Port of redis service
 type Service struct {
-	log     *gousu.Log
-	pool    *redis.Pool
-	cluster *redisc.Cluster
+	log           *gousu.Log
+	pool          *redis.Pool
+	cluster       *redisc.Cluster
+	redsyncClient *redsync.Redsync
 }
 
 var _ IService = (*Service)(nil)
@@ -91,6 +95,7 @@ func (s *Service) Name() string {
 // Start connects to the redis pool
 func (s *Service) Start() error {
 	var err error
+	var redsyncPool redsyncredis.Pool
 
 	if *redisClusterMode {
 		s.log.Infof("Connecting to redis cluster on %s:%d ...", *redisHost, *redisPort)
@@ -100,6 +105,8 @@ func (s *Service) Start() error {
 			DialOptions:  []redis.DialOption{redis.DialConnectTimeout(5 * time.Second)},
 			CreatePool:   s.createPool,
 		}
+
+		redsyncPool = newRedsyncPoolFromCluster(s.cluster)
 	} else {
 		s.log.Infof("Connecting to redis on %s:%d ...", *redisHost, *redisPort)
 
@@ -107,7 +114,11 @@ func (s *Service) Start() error {
 		if err != nil {
 			return err
 		}
+
+		redsyncPool = newRedsyncPoolFromPool(s.pool)
 	}
+
+	s.redsyncClient = redsync.New(redsyncPool)
 
 	conn, err := s.openConn(true)
 	if err != nil {
@@ -484,7 +495,7 @@ var _ (ISubscription) = (*Subscription)(nil)
 // Subscribe subscribes to one or multiple channels
 func (s *Subscription) Subscribe(channel ...interface{}) error {
 	if s.conn == nil {
-		return fmt.Errorf("No connection")
+		return fmt.Errorf("no connection")
 	}
 
 	return s.conn.Subscribe(channel...)
@@ -493,7 +504,7 @@ func (s *Subscription) Subscribe(channel ...interface{}) error {
 // Unsubscribe unsubscribes from one or multiple channels
 func (s *Subscription) Unsubscribe(channel ...interface{}) error {
 	if s.conn == nil {
-		return fmt.Errorf("No connection")
+		return fmt.Errorf("no connection")
 	}
 
 	return s.conn.Unsubscribe(channel...)
@@ -520,7 +531,7 @@ func (s *Subscription) Close() error {
 	return nil
 }
 
-// GetPool returns the redis connection pool
+// GetPool returns the redis connection pool if not in cluster mode, else nil
 func (s *Service) GetPool() *redis.Pool {
 	return s.pool
 }
@@ -602,6 +613,10 @@ func (s *Service) Publish(channel string, data []byte) error {
 	_, err = conn.Do("PUBLISH", channel, data)
 
 	return err
+}
+
+func (s *Service) NewMutex(name string, options ...redsync.Option) *redsync.Mutex {
+	return s.redsyncClient.NewMutex(name, options...)
 }
 
 // NewService is the ServiceFactory for redis service

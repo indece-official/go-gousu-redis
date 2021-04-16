@@ -1,6 +1,7 @@
 package gousuredis
 
 import (
+	"github.com/go-redsync/redsync/v4"
 	"github.com/gomodule/redigo/redis"
 	"github.com/indece-official/go-gousu"
 )
@@ -9,6 +10,7 @@ import (
 type MockService struct {
 	gousu.MockService
 
+	NewMutexFunc        func(name string, options ...redsync.Option) *redsync.Mutex
 	GetPoolFunc         func() *redis.Pool
 	GetFunc             func(key string) ([]byte, error)
 	SetFunc             func(key string, data []byte) error
@@ -33,6 +35,7 @@ type MockService struct {
 	LLenFunc            func(key string) (int, error)
 	SubscribeFunc       func(channels []string) (chan Message, ISubscription, error)
 	PublishFunc         func(channel string, data []byte) error
+	NewMutexFuncCalled  int
 	GetPoolFuncCalled   int
 	GetFuncCalled       int
 	SetFuncCalled       int
@@ -61,6 +64,13 @@ type MockService struct {
 
 // MockService implements IService
 var _ (IService) = (*MockService)(nil)
+
+// NewMutex calls NewMutexFunc and increases NewMutexFuncCalled
+func (s *MockService) NewMutex(name string, options ...redsync.Option) *redsync.Mutex {
+	s.NewMutexFuncCalled++
+
+	return s.NewMutexFunc(name, options...)
+}
 
 // GetPool calls GetPoolFunc and increases GetPoolFuncCalled
 func (s *MockService) GetPool() *redis.Pool {
