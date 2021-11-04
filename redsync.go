@@ -104,9 +104,9 @@ func (c *conn) Close() error {
 func noErrNil(err error) error {
 	if err == redis.ErrNil {
 		return nil
-	} else {
-		return err
 	}
+
+	return err
 }
 
 func args(script *redsyncredis.Script, spec string, keysAndArgs []interface{}) []interface{} {

@@ -135,22 +135,22 @@ func (s *Service) Start() error {
 }
 
 func (s *Service) openConn(useRetry bool) (redis.Conn, error) {
-	if s.cluster != nil {
-		conn := s.cluster.Get()
-		if !useRetry {
-			return conn, nil
-		}
-
-		// make it handle redirections automatically
-		rc, err := redisc.RetryConn(conn, 3, 100*time.Millisecond)
-		if err != nil {
-			return nil, fmt.Errorf("retry failed: %s", err)
-		}
-
-		return rc, nil
-	} else {
+	if s.cluster == nil {
 		return s.pool.Get(), nil
 	}
+
+	conn := s.cluster.Get()
+	if !useRetry {
+		return conn, nil
+	}
+
+	// make it handle redirections automatically
+	rc, err := redisc.RetryConn(conn, 3, 100*time.Millisecond)
+	if err != nil {
+		return nil, fmt.Errorf("retry failed: %s", err)
+	}
+
+	return rc, nil
 }
 
 // Health checks the health of the Service by pinging the redis database
@@ -171,11 +171,11 @@ func (s *Service) Health() error {
 
 // Stop closes all redis pool connections
 func (s *Service) Stop() error {
-	if s.cluster != nil {
-		return s.cluster.Close()
-	} else {
+	if s.cluster == nil {
 		return s.pool.Close()
 	}
+
+	return s.cluster.Close()
 }
 
 // Get retrieves a key's value from redis
@@ -615,6 +615,7 @@ func (s *Service) Publish(channel string, data []byte) error {
 	return err
 }
 
+// NewMutex creates a new redsync mutex
 func (s *Service) NewMutex(name string, options ...redsync.Option) *redsync.Mutex {
 	return s.redsyncClient.NewMutex(name, options...)
 }
