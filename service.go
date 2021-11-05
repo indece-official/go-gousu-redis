@@ -107,8 +107,8 @@ func (s *Service) Start() error {
 		dialOpts = append(dialOpts, redis.DialUsername(*redisUsername))
 	}
 
-	if *redisUsername != "" {
-		dialOpts = append(dialOpts, redis.DialUsername(*redisUsername))
+	if *redisPassword != "" {
+		dialOpts = append(dialOpts, redis.DialPassword(*redisPassword))
 	}
 
 	if *redisClusterMode {
