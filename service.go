@@ -18,6 +18,8 @@ const ServiceName = "redis"
 var (
 	redisHost        = flag.String("redis_host", "127.0.0.1", "Redis host")
 	redisPort        = flag.Int("redis_port", 6379, "Redis port")
+	redisUsername    = flag.String("redis_username", "", "Redis username")
+	redisPassword    = flag.String("redis_password", "", "Redis password")
 	redisMaxIdle     = flag.Int("redis_max_idle", 3, "Redis maximum idle connections")
 	redisMaxActive   = flag.Int("redis_max_active", 50, "Redis maximum active connections")
 	redisIdleTimeout = flag.Int("redis_idle_timeout", 240, "Redis idle connection timeout")
@@ -97,12 +99,24 @@ func (s *Service) Start() error {
 	var err error
 	var redsyncPool redsyncredis.Pool
 
+	dialOpts := []redis.DialOption{}
+
+	dialOpts = append(dialOpts, redis.DialConnectTimeout(5*time.Second))
+
+	if *redisUsername != "" {
+		dialOpts = append(dialOpts, redis.DialUsername(*redisUsername))
+	}
+
+	if *redisUsername != "" {
+		dialOpts = append(dialOpts, redis.DialUsername(*redisUsername))
+	}
+
 	if *redisClusterMode {
 		s.log.Infof("Connecting to redis cluster on %s:%d ...", *redisHost, *redisPort)
 
 		s.cluster = &redisc.Cluster{
 			StartupNodes: []string{fmt.Sprintf("%s:%d", *redisHost, *redisPort)},
-			DialOptions:  []redis.DialOption{redis.DialConnectTimeout(5 * time.Second)},
+			DialOptions:  dialOpts,
 			CreatePool:   s.createPool,
 		}
 
@@ -110,7 +124,7 @@ func (s *Service) Start() error {
 	} else {
 		s.log.Infof("Connecting to redis on %s:%d ...", *redisHost, *redisPort)
 
-		s.pool, err = s.createPool(fmt.Sprintf("%s:%d", *redisHost, *redisPort))
+		s.pool, err = s.createPool(fmt.Sprintf("%s:%d", *redisHost, *redisPort), dialOpts...)
 		if err != nil {
 			return err
 		}
