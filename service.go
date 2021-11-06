@@ -58,6 +58,10 @@ type IService interface {
 	LLen(key string) (int, error)
 	Subscribe(channels []string) (chan Message, ISubscription, error)
 	Publish(channel string, data []byte) error
+	XAdd(key string, data map[string]string) (string, error)
+	XGroupCreate(groupName string, key string, offset XGroupCreateOffset, mkStream bool, ignoreBusy bool) error
+	XReadGroup(groupName string, consumerName string, key string, timeout time.Duration, streamID XReadGroupStreamID) (*XEvent, error)
+	XAck(groupName string, key string, id string) (int, error)
 }
 
 // Service provides a service for basic redis client functionality
