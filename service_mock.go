@@ -24,6 +24,7 @@ type MockService struct {
 	RPushFunc              func(key string, data []byte) (int, error)
 	LPushFunc              func(key string, data []byte) (int, error)
 	LRangeFunc             func(key string, start int, stop int) ([][]byte, error)
+	LRemFunc               func(key string, count int, data []byte) (int, error)
 	LPopFunc               func(key string) ([]byte, error)
 	RPopFunc               func(key string) ([]byte, error)
 	BLPopFunc              func(key string, timeout int) ([]byte, error)
@@ -53,6 +54,7 @@ type MockService struct {
 	RPushFuncCalled        int
 	LPushFuncCalled        int
 	LRangeFuncCalled       int
+	LRemFuncCalled         int
 	LPopFuncCalled         int
 	RPopFuncCalled         int
 	BLPopFuncCalled        int
@@ -157,6 +159,13 @@ func (s *MockService) LRange(key string, start int, stop int) ([][]byte, error) 
 	s.LRangeFuncCalled++
 
 	return s.LRangeFunc(key, start, stop)
+}
+
+// LRem calls LRemFunc and increases LRemFuncCalled
+func (s *MockService) LRem(key string, count int, data []byte) (int, error) {
+	s.LRemFuncCalled++
+
+	return s.LRemFunc(key, count, data)
 }
 
 // LPop calls LPopFunc and increases LPopFuncCalled
@@ -319,6 +328,9 @@ func NewMockService() *MockService {
 		},
 		LRangeFunc: func(key string, start int, stop int) ([][]byte, error) {
 			return [][]byte{}, nil
+		},
+		LRemFunc: func(key string, count int, data []byte) (int, error) {
+			return 0, nil
 		},
 		LPopFunc: func(key string) ([]byte, error) {
 			return []byte{}, nil

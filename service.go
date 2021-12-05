@@ -45,6 +45,7 @@ type IService interface {
 	RPush(key string, data []byte) (int, error)
 	LPush(key string, data []byte) (int, error)
 	LRange(key string, start int, stop int) ([][]byte, error)
+	LRem(key string, count int, data []byte) (int, error)
 	LPop(key string) ([]byte, error)
 	RPop(key string) ([]byte, error)
 	BLPop(key string, timeout int) ([]byte, error)
@@ -329,6 +330,17 @@ func (s *Service) LRange(key string, start int, stop int) ([][]byte, error) {
 	defer conn.Close()
 
 	return redis.ByteSlices(conn.Do("LRANGE", key, start, stop))
+}
+
+// LRem removes n matching items from a list
+func (s *Service) LRem(key string, count int, data []byte) (int, error) {
+	conn, err := s.openConn(true)
+	if err != nil {
+		return 0, fmt.Errorf("can't connect to redis: %s", err)
+	}
+	defer conn.Close()
+
+	return redis.Int(conn.Do("LREM", key, count, data))
 }
 
 // LPop returns the newest item from a list (non-blocking)
